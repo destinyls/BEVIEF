@@ -36,3 +36,7 @@ events.out.tfevents*
 # vscode
 *.code-workspace
 .vscode
+
+BEVDepth.egg-info/
+__pycache__/
+build/

@@ -13,6 +13,7 @@ from mmdet.models.backbones.resnet import BasicBlock
 from torch import nn
 
 from ops.voxel_pooling import voxel_pooling
+from layers.backbones.dynamic_conv import DynamicConv2d
 
 __all__ = ['LSSFPN']
 
@@ -21,7 +22,7 @@ class _ASPPModule(nn.Module):
     def __init__(self, inplanes, planes, kernel_size, padding, dilation,
                  BatchNorm):
         super(_ASPPModule, self).__init__()
-        self.atrous_conv = nn.Conv2d(inplanes,
+        self.atrous_conv = DynamicConv2d(inplanes,
                                      planes,
                                      kernel_size=kernel_size,
                                      stride=1,
@@ -81,11 +82,11 @@ class ASPP(nn.Module):
 
         self.global_avg_pool = nn.Sequential(
             nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Conv2d(inplanes, mid_channels, 1, stride=1, bias=False),
+            DynamicConv2d(inplanes, mid_channels, 1, stride=1, bias=False),
             BatchNorm(mid_channels),
             nn.ReLU(),
         )
-        self.conv1 = nn.Conv2d(int(mid_channels * 5),
+        self.conv1 = DynamicConv2d(int(mid_channels * 5),
                                mid_channels,
                                1,
                                bias=False)
@@ -149,9 +150,9 @@ class Mlp(nn.Module):
 class SELayer(nn.Module):
     def __init__(self, channels, act_layer=nn.ReLU, gate_layer=nn.Sigmoid):
         super().__init__()
-        self.conv_reduce = nn.Conv2d(channels, channels, 1, bias=True)
+        self.conv_reduce = DynamicConv2d(channels, channels, 1, bias=True)
         self.act1 = act_layer()
-        self.conv_expand = nn.Conv2d(channels, channels, 1, bias=True)
+        self.conv_expand = DynamicConv2d(channels, channels, 1, bias=True)
         self.gate = gate_layer()
 
     def forward(self, x, x_se):
@@ -166,7 +167,7 @@ class DepthNet(nn.Module):
                  depth_channels):
         super(DepthNet, self).__init__()
         self.reduce_conv = nn.Sequential(
-            nn.Conv2d(in_channels,
+            DynamicConv2d(in_channels,
                       mid_channels,
                       kernel_size=3,
                       stride=1,
@@ -174,7 +175,7 @@ class DepthNet(nn.Module):
             nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True),
         )
-        self.context_conv = nn.Conv2d(mid_channels,
+        self.context_conv = DynamicConv2d(mid_channels,
                                       context_channels,
                                       kernel_size=1,
                                       stride=1,
@@ -198,7 +199,7 @@ class DepthNet(nn.Module):
                 groups=4,
                 im2col_step=128,
             )),
-            nn.Conv2d(mid_channels,
+            DynamicConv2d(mid_channels,
                       depth_channels,
                       kernel_size=1,
                       stride=1,
