@@ -262,7 +262,7 @@ class NuscMVDetDataset(Dataset):
         
         self.ratio_range = [1.0, 0.08]
         self.roll_range = [0.0, 1.67]
-        self.pitch_range = [0.0, 1.67]
+        self.pitch_range = [0.0, 0.67]
 
     def _get_sample_indices(self):
         """Load annotations from ann_file.

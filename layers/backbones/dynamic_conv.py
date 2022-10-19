@@ -73,38 +73,18 @@ class DynamicConvolution(TempModule):
         alphas = self.attention(x, temperature)
         agg_weights = torch.sum(
             torch.mul(self.kernels_weights.unsqueeze(0), alphas.view(batch_size, -1, 1, 1, 1, 1)), dim=1)
-        # Group the weights for each batch to conv2 all at once
-        agg_weights = agg_weights.view(-1, *agg_weights.shape[-3:])  # batch_size*out_c X in_c X kernel_size X kernel_size
+        agg_weights = agg_weights.view(-1, *agg_weights.shape[-3:])
         if self.kernels_bias is not None:
             agg_bias = torch.sum(torch.mul(self.kernels_bias.unsqueeze(0), alphas.view(batch_size, -1, 1)), dim=1)
             agg_bias = agg_bias.view(-1)
         else:
             agg_bias = None
-        x_grouped = x.view(1, -1, *x.shape[-2:])  # 1 X batch_size*out_c X H X W
-
+        x_grouped = x.view(1, -1, *x.shape[-2:])
         out = F.conv2d(x_grouped, agg_weights, agg_bias, groups=self.groups * batch_size,
-                       **self.conv_args)  # 1 X batch_size*out_C X H' x W'
-        out = out.view(batch_size, -1, *out.shape[-2:])  # batch_size X out_C X H' x W'
+                       **self.conv_args)
+        out = out.view(batch_size, -1, *out.shape[-2:])
 
         return out
-
-
-class FlexibleKernelsDynamicConvolution:
-    def __init__(self, Base, nof_kernels, reduce):
-        if isinstance(nof_kernels, Iterable):
-            self.nof_kernels_it = iter(nof_kernels)
-        else:
-            self.nof_kernels_it = itertools.cycle([nof_kernels])
-        self.Base = Base
-        self.reduce = reduce
-
-    def __call__(self, *args, **kwargs):
-        return self.Base(next(self.nof_kernels_it), self.reduce, *args, **kwargs)
-
-
-def dynamic_convolution_generator(nof_kernels, reduce):
-    return FlexibleKernelsDynamicConvolution(DynamicConvolution, nof_kernels, reduce)
-
 
 if __name__ == '__main__':
     torch.manual_seed(41)

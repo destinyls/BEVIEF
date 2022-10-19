@@ -38,7 +38,8 @@ backbone_conf = {
     'x_bound': [0, 102.4, 0.8],
     'y_bound': [-51.2, 51.2, 0.8],
     'z_bound': [-5, 3, 8],
-    'd_bound': [-3.0, 5.0, 0.1],
+    # 'd_bound': [-3.0, 5.0, 0.1],
+    'd_bound': [2.5, 10.5, 80],
     'final_dim':
     final_dim,
     'output_channels':

@@ -35,45 +35,7 @@ class SelfTraining(nn.Module):
                  ):
         super().__init__()
         self.in_dim = in_dim
-        '''
-        self.projector = nn.Sequential(
-                nn.Conv2d(in_dim,
-                          proj_hidden_dim,
-                          kernel_size=1,
-                          padding=1 // 2,
-                          bias=True),
-                nn.BatchNorm2d(proj_hidden_dim),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(proj_hidden_dim,
-                          proj_hidden_dim,
-                          kernel_size=1,
-                          padding=1 // 2,
-                          bias=True),
-                nn.BatchNorm2d(proj_hidden_dim),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(proj_hidden_dim,
-                          out_dim,
-                          kernel_size=1,
-                          padding=1 // 2,
-                          bias=True),
-                nn.BatchNorm2d(out_dim)
-            )
         
-        self.predictor = nn.Sequential(
-            nn.Conv2d(out_dim,
-                      pred_hidden_dim,
-                      kernel_size=1,
-                      padding=1 // 2,
-                      bias=True),
-            nn.BatchNorm2d(pred_hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(pred_hidden_dim,
-                      out_dim,
-                      kernel_size=1,
-                      padding=1 // 2,
-                      bias=True)
-        )
-        '''
         self.projector = nn.Sequential(
                 nn.Linear(in_dim, proj_hidden_dim),
                 nn.BatchNorm1d(proj_hidden_dim),
@@ -104,18 +66,6 @@ class SelfTraining(nn.Module):
         ids1 = np.arange(0, bs, 2)
         ids2 = np.arange(1, bs + 1, 2)        
         
-        # pixel level
-        '''
-        x1, x2 = feature_map[ids1], feature_map[ids2]
-        z1, z2 = self.projector(x1), self.projector(x2)
-        p1, p2 = self.predictor(z1), self.predictor(z2)
-        z1, z2 = z1.permute(0, 2, 3, 1).contiguous(), z1.permute(0, 2, 3, 1).contiguous()
-        p1, p2 = p1.permute(0, 2, 3, 1).contiguous(), p1.permute(0, 2, 3, 1).contiguous()
-        z1, z2 = z1.view(-1, z1.shape[-1]), z2.view(-1, z2.shape[-1])
-        p1, p2 = p1.view(-1, p1.shape[-1]), p2.view(-1, p2.shape[-1])
-        loss_map = D(p1, z2) / 2 + D(p2, z1) / 2
-        '''
-        
         # grid level
         pixel_points = self.bev_voxels(num_voxels=[50, 50])
         pixel_points = torch.from_numpy(pixel_points).to(device=feature_map.device)
@@ -145,16 +95,7 @@ class SelfTraining(nn.Module):
                 continue
             for obj_id in range(gt_bbox.shape[0]):
                 loc, lwh, rot_y = gt_bbox[obj_id, :3], gt_bbox[obj_id, 3:6], gt_bbox[obj_id, 6]
-                '''
-                corners = self.get_object_corners(lwh, loc, rot_y)
-                pixels = self.point2bevpixel(corners)
-                pixels_w, pixels_h = pixels[:,0], pixels[:,1]
-                c = (0, 255, 255)
-                cv2.line(bev_demo, (pixels_w[0], pixels_h[0]), (pixels_w[1], pixels_h[1]), c, 2)
-                cv2.line(bev_demo, (pixels_w[0], pixels_h[0]), (pixels_w[2], pixels_h[2]), c, 2)
-                cv2.line(bev_demo, (pixels_w[1], pixels_h[1]), (pixels_w[3], pixels_h[3]), c, 2)
-                cv2.line(bev_demo, (pixels_w[2], pixels_h[2]), (pixels_w[3], pixels_h[3]), c, 2)
-                '''
+                
                 corners = self.get_object_axes(lwh, loc, rot_y)
                 pixels = self.point2bevpixel(corners)
                 bbox_locs[batch_id, (1 * obj_id):(1 * (obj_id+1)), :] = pixels
@@ -216,8 +157,6 @@ class SelfTraining(nn.Module):
         tr_matrix[:2, :2] = np.array([np.cos(rot_y), -np.sin(rot_y), np.sin(rot_y), np.cos(rot_y)]).astype(float).reshape(2,2)
         tr_matrix[:2, 2] = np.array([loc[0], loc[1]]).astype(float).reshape(1,2)
         lwh = 0.5 * lwh
-        # corner_points = np.array([0.0, lwh[0], 1.0, 0.0, -lwh[0], 1.0, 0.0, -lwh[0], 1.0]).astype(float).reshape(3,3).T
-        # corner_points = np.array([lwh[1], 0.0, 1.0, 0.0, 0.0, 1.0, -lwh[1], 0.0, 1.0]).astype(float).reshape(3,3).T
         corner_points = np.array([0.0, 0.0, 1.0]).astype(float).reshape(1,3).T
         corner_points = np.dot(tr_matrix, corner_points).T
         return corner_points

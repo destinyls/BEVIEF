@@ -1,6 +1,7 @@
 # Copyright (c) Megvii Inc. All rights reserved.
 import cv2
 import numpy as np
+import math
 
 import torch
 import torch.nn.functional as F
@@ -12,17 +13,15 @@ from mmdet.models.backbones.resnet import BasicBlock
 from torch import nn
 
 from ops.voxel_pooling import voxel_pooling
-from layers.backbones.dynamic_conv import DynamicConvolution
+# from layers.backbones.dynamic_conv import DynamicConvolution
 
 __all__ = ['LSSFPN']
-
-LayerName = DynamicConvolution
 
 class _ASPPModule(nn.Module):
     def __init__(self, inplanes, planes, kernel_size, padding, dilation,
                  BatchNorm):
         super(_ASPPModule, self).__init__()
-        self.atrous_conv = LayerName(inplanes,
+        self.atrous_conv = nn.Conv2d(inplanes,
                                      planes,
                                      kernel_size=kernel_size,
                                      stride=1,
@@ -82,11 +81,11 @@ class ASPP(nn.Module):
 
         self.global_avg_pool = nn.Sequential(
             nn.AdaptiveAvgPool2d((1, 1)),
-            LayerName(inplanes, mid_channels, 1, stride=1, bias=False),
+            nn.Conv2d(inplanes, mid_channels, 1, stride=1, bias=False),
             BatchNorm(mid_channels),
             nn.ReLU(),
         )
-        self.conv1 = LayerName(int(mid_channels * 5),
+        self.conv1 = nn.Conv2d(int(mid_channels * 5),
                                mid_channels,
                                1,
                                bias=False)
@@ -150,9 +149,9 @@ class Mlp(nn.Module):
 class SELayer(nn.Module):
     def __init__(self, channels, act_layer=nn.ReLU, gate_layer=nn.Sigmoid):
         super().__init__()
-        self.conv_reduce = LayerName(channels, channels, 1, bias=True)
+        self.conv_reduce = nn.Conv2d(channels, channels, 1, bias=True)
         self.act1 = act_layer()
-        self.conv_expand = LayerName(channels, channels, 1, bias=True)
+        self.conv_expand = nn.Conv2d(channels, channels, 1, bias=True)
         self.gate = gate_layer()
 
     def forward(self, x, x_se):
@@ -167,7 +166,7 @@ class DepthNet(nn.Module):
                  depth_channels):
         super(DepthNet, self).__init__()
         self.reduce_conv = nn.Sequential(
-            LayerName(in_channels,
+            nn.Conv2d(in_channels,
                       mid_channels,
                       kernel_size=3,
                       stride=1,
@@ -175,7 +174,7 @@ class DepthNet(nn.Module):
             nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True),
         )
-        self.context_conv = LayerName(mid_channels,
+        self.context_conv = nn.Conv2d(mid_channels,
                                       context_channels,
                                       kernel_size=1,
                                       stride=1,
@@ -199,7 +198,7 @@ class DepthNet(nn.Module):
                 groups=4,
                 im2col_step=128,
             )),
-            LayerName(mid_channels,
+            nn.Conv2d(mid_channels,
                       depth_channels,
                       kernel_size=1,
                       stride=1,
@@ -313,9 +312,36 @@ class LSSFPN(nn.Module):
         # make grid in image plane
         ogfH, ogfW = self.final_dim
         fH, fW = ogfH // self.downsample_factor, ogfW // self.downsample_factor
+        
+        # Uniform
+        '''
         d_coords = torch.arange(*self.d_bound,
                                 dtype=torch.float).view(-1, 1,
                                                         1).expand(-1, fH, fW)
+        '''
+        # SID                     
+        d_coords = np.arange(self.d_bound[2]) / self.d_bound[2] * (math.log(self.d_bound[1]) - math.log(self.d_bound[0]))
+        d_coords = np.exp(d_coords + math.log(self.d_bound[0]))
+        d_coords = torch.tensor(d_coords, dtype=torch.float).view(-1, 1, 1).expand(-1, fH, fW)
+           
+        # PID
+        '''
+        alpha = 2
+        range_num1 = int(self.d_bound[2] * abs(self.d_bound[0]) / (self.d_bound[1] - self.d_bound[0]))
+        range_num2 = self.d_bound[2] - range_num1
+
+        d_min1, d_max1 = 0.001, abs(self.d_bound[0])
+        delta1 = np.arange(0, range_num1, 1) / range_num1
+        delta1 = np.power(delta1, alpha) 
+        d_coords1 = -1 * np.flipud(d_min1 + delta1 * (d_max1 - d_min1))
+        d_min2, d_max2 = 0.001, self.d_bound[1]
+        delta2 = np.arange(0, range_num2, 1) / range_num2
+        delta2 = np.power(delta2, alpha) 
+        d_coords2 = d_min2 + delta2 * (d_max2 - d_min2)
+        d_coords = np.concatenate([d_coords1, d_coords2], axis=0)
+        d_coords = torch.tensor(d_coords, dtype=torch.float).view(-1, 1, 1).expand(-1, fH, fW)
+        '''
+        
         D, _, _ = d_coords.shape
         x_coords = torch.linspace(0, ogfW - 1, fW, dtype=torch.float).view(
             1, 1, fW).expand(D, fH, fW)
