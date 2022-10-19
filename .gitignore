@@ -3,6 +3,8 @@
 __pycache__/
 BEVDepth.egg-info/
 build/
+*.so
+*.pyc
 
 ### Vim ###
 # Swap
