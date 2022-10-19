@@ -1,0 +1,38 @@
+# Pyre type checker
+.pyre/
+
+### Vim ###
+# Swap
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Session
+Session.vim
+
+# Temporary
+.netrwhist
+# Auto-generated tag files
+tags
+# Persistent undo
+[._]*.un~
+
+### Researcher ###
+# output
+train_log
+docs/api
+.code-workspace.code-workspace
+output
+outputs
+instant_test_output
+inference_test_output
+*.pkl
+*.npy
+*.pth
+events.out.tfevents*
+
+# vscode
+*.code-workspace
+.vscode
